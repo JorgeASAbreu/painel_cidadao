@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+**/node_modules/
+# Build / tests
+dist/
+**/dist/
+build/
+coverage/
+**/coverage/
+.vite/
+*.tsbuildinfo
+# Local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+# SQLite and session state
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+backend/data/
+backend/sessions/
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

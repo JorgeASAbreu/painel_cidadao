@@ -1,0 +1,22 @@
+{
+  "name": "painel-civico-municipal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c cyan,green \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\"",
+    "start": "npm run start --workspace backend",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "npm run build --workspace frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "supertest": "^7.1.4",
+    "vitest": "^5.0.3"
+  }
+}
