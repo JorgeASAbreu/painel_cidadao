@@ -54,7 +54,17 @@ describe('caminho feliz municipal', () => {
   it('cadastra, autentica, consulta, favorita, preserva offline, atualiza, isola usuários, remove e encerra sessão', async () => {
     const { db, filename } = createTempDatabase();
     const locationService = { lookup: vi.fn(async () => municipalSnapshot()) };
-    const app = createApp({ db, locationService });
+    const mapTileProvider = vi.fn(async () => ({
+      body: Buffer.from([137, 80, 78, 71]), contentType: 'image/png', cacheControl: 'public, max-age=3600',
+    }));
+    const reverseGeocodeProvider = vi.fn(async () => ({ cep: '01001000' }));
+    const citySearchProvider = vi.fn(async ({ city, state }) => ({
+      city, state,
+      geographicCenter: { name: city, latitude: -23.55, longitude: -46.63, cep: '01001000' },
+      civicCenter: { name: 'Prefeitura Municipal', latitude: -23.54, longitude: -46.62, cep: '01002000' },
+      source: 'OpenStreetMap / Nominatim',
+    }));
+    const app = createApp({ db, locationService, mapTileProvider, reverseGeocodeProvider, citySearchProvider });
     const userA = request.agent(app);
 
     const health = await userA.get('/api/health').expect(200);
@@ -70,6 +80,17 @@ describe('caminho feliz municipal', () => {
     const login = await userA.post('/api/auth/login').send({ email: 'ana@example.test', password: 'senha-local-123' }).expect(200);
     const sessionCookie = login.headers['set-cookie'][0].split(';')[0];
     expect(login.body.data.name).toBe('Ana Cidadã');
+
+    const mapTile = await userA.get('/api/map/tiles/16/19315/27328.png').expect(200).expect('Content-Type', /image\/png/);
+    expect(mapTile.body).toEqual(Buffer.from([137, 80, 78, 71]));
+    expect(mapTileProvider).toHaveBeenCalledWith({ z: 16, x: 19315, y: 27328 });
+    const reverseGeocode = await userA.post('/api/map/reverse').send({ latitude: -23.5475, longitude: -46.63611 }).expect(200);
+    expect(reverseGeocode.body.data.cep).toBe('01001000');
+    expect(reverseGeocodeProvider).toHaveBeenCalledWith({ latitude: -23.5475, longitude: -46.63611 });
+    const citySearch = await userA.post('/api/map/city-centers').send({ city: 'São Paulo', state: 'SP' }).expect(200);
+    expect(citySearch.body.data.geographicCenter.cep).toBe('01001000');
+    expect(citySearch.body.data.civicCenter.cep).toBe('01002000');
+    expect(citySearchProvider).toHaveBeenCalledWith({ city: 'São Paulo', state: 'SP' });
 
     const lookup = await userA.get('/api/locations/cep/01001-000').expect(200);
     expect(lookup.body.data.location.ibgeCode).toBe('3550308');

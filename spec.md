@@ -18,7 +18,7 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 - **Banco:** SQLite local via `better-sqlite3`; arquivo em diretório de dados não versionado.
 - **Testes do MVP:** Vitest e Supertest, testes de fluxo principal; testes específicos de segurança e hardening em fase final obrigatória.
 - **Execução:** localhost, sem Docker, sem PostgreSQL, sem serviços de autenticação de terceiros.
-- **Integrações:** BrasilAPI CEP v2, Open-Meteo, APIs oficiais IBGE (Localidades e fontes oficiais de indicadores, incluindo SIDRA quando aplicável).
+- **Integrações:** BrasilAPI CEP v2, Open-Meteo, APIs oficiais IBGE (Localidades e fontes oficiais de indicadores, incluindo SIDRA quando aplicável) e Nominatim/OpenStreetMap em buscas explícitas por cidade ou ponto no mapa.
 
 ## 3. Decisões aprovadas
 
@@ -35,9 +35,13 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 
 **Usuário:** cria conta, autentica, pesquisa CEP, consulta dados, favorita municípios, consulta snapshots offline, atualiza ou remove favoritos e encerra sessão.
 
-**Incluído no MVP:** cadastro, login/logout, consulta CEP, consulta clima quando houver coordenadas, indicadores demográficos, favoritos por usuário, snapshots, listagem offline e persistência entre reinícios.
+**Incluído no MVP:** cadastro, login/logout, consulta CEP, mapa de localização associada ao CEP quando houver coordenadas válidas da BrasilAPI, consulta clima quando houver coordenadas, indicadores demográficos, favoritos por usuário, snapshots, listagem offline e persistência entre reinícios.
 
-**Fora do MVP:** mapas interativos, notificações, relatórios PDF, gráficos históricos, administração de múltiplas organizações, sincronização em nuvem, localização automática, busca por endereço, importação em massa e edição de dados oficiais.
+**Fora do MVP:** notificações, relatórios PDF, gráficos históricos, administração de múltiplas organizações, sincronização em nuvem, localização automática, busca por endereço, importação em massa e edição de dados oficiais.
+
+**Complemento validado pelo usuário:** mapa Leaflet com tiles do OpenStreetMap, atribuição visível e tiles obtidos pelo backend. Na consulta tradicional por CEP, o marcador reutiliza exclusivamente coordenadas fornecidas pela BrasilAPI; representa localização associada ao CEP e não garante número ou trecho exato de rua. Sem coordenadas válidas, informar indisponibilidade sem geocodificação alternativa. O mapa fica na consulta online e não integra a visualização offline de snapshots. Por ação explícita de clique, o usuário pode selecionar outra coordenada: Nominatim tenta retornar o CEP associado ao objeto mapeado mais próximo; o frontend então executa o fluxo BrasilAPI já existente. Esse retorno não garante o CEP oficial mais próximo por distância.
+
+**Complemento validado pelo usuário — busca municipal:** manter a busca por CEP e acrescentar busca por município e UF. Mostrar no mapa o centro geográfico publicado no OpenStreetMap e, quando mapeada/identificada, a prefeitura como centro cívico, com os CEPs associados a cada ponto. Coordenadas e CEPs dessa busca são referências OpenStreetMap/Nominatim, não coordenadas ou CEPs oficiais dos Correios; ausência de prefeitura ou CEP deve ser indicada sem fabricar valores. Essa busca só ocorre por solicitação explícita do usuário.
 
 ## 5. Fluxo de usuário
 
@@ -149,9 +153,18 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 | POST | `/api/favorites` | Persistir resultado consultado por ação explícita |
 | PUT | `/api/favorites/:id/refresh` | Atualizar snapshot por consulta online explícita |
 | DELETE | `/api/favorites/:id` | Excluir favorito |
+| GET | `/api/map/tiles/:z/:x/:y.png` | Obter tile OpenStreetMap (autenticado) |
+| POST | `/api/map/reverse` | Obter CEP associado a coordenadas selecionadas explicitamente (autenticado) |
+| POST | `/api/map/city-centers` | Buscar referências do centro geográfico e da prefeitura por município/UF (autenticado) |
 | GET | `/api/health` | Verificar disponibilidade do backend |
 
 **Respostas:** JSON com `data`, `status` e, quando necessário, `warnings`. Erros padronizados com `error.code` e `error.message`; nunca expor stack trace ao cliente. Autenticação exigida nas rotas de favoritos. A rota de consulta CEP também exigirá autenticação para preservar a experiência de painel autenticado.
+
+A rota de tiles exige autenticação, retorna imagem PNG e usa somente o host fixo `tile.openstreetmap.org`; falhas retornam erro JSON padronizado. Cabeçalhos de cache publicados pelo provedor são respeitados. A rota não aceita host ou URL fornecidos pelo cliente.
+
+A rota de busca reversa também exige autenticação, recebe latitude/longitude JSON, limita o retorno a CEP com oito dígitos e consulta Nominatim pelo backend. O endereço de serviço pode ser substituído via `NOMINATIM_REVERSE_URL`; a implementação respeita no máximo uma solicitação por segundo e usa cache somente volátil em memória (até 256 coordenadas por 24 horas), sem gravar consulta ou histórico em SQLite/localStorage. O frontend chama essa rota apenas após clique intencional no mapa; CEPs retornados são aproximados e dependem da cobertura OpenStreetMap.
+
+A busca municipal também é autenticada e recebe `city` e `state` (sigla UF). A rota usa Nominatim Search para localizar a referência municipal e procura uma feição de prefeitura/paço municipal dentro do município e UF identificados. CEPs que não estejam nos resultados são tentados pela busca reversa. Os resultados são apenas referências cartográficas associadas a feições do OpenStreetMap; não são CEP geral oficial nem garantem proximidade postal. `NOMINATIM_SEARCH_URL` pode trocar o endpoint Search. As chamadas Search e Reverse compartilham fila global de no máximo uma solicitação por segundo e cache temporário em memória; não há persistência de consultas.
 
 **Modelo agregado indicativo:**
 
@@ -216,11 +229,17 @@ painel-civico/
 
 1. **Cadastro:** nome, e-mail, senha, confirmação.
 2. **Login:** e-mail e senha, navegação para cadastro.
-3. **Dashboard:** campo CEP, endereço, município/UF/IBGE, cards de clima e IBGE, botão favoritar.
+3. **Dashboard:** seletor de busca por CEP ou município/UF; consulta CEP com endereço, município/UF/IBGE, cards de clima e IBGE e mapa; busca municipal com centro geográfico e prefeitura/centro cívico e CEPs associados quando disponíveis.
 4. **Favoritos:** lista individual, busca local na lista, abrir snapshot, atualizar e remover.
 5. **Detalhe do favorito:** informações salvas, datas, fontes, aviso de dado histórico e ação de atualização.
 
 Interface responsiva em pt-BR, formatação brasileira para números, datas e unidades, estados vazios e mensagens acessíveis.
+
+O mapa apresenta atribuição OpenStreetMap e ponto aproximado associado ao CEP; não afirma localização exata de número ou trecho. A camada cartográfica é carregada online pelo backend autenticado e fica indisponível sem conectividade.
+
+No dashboard, um clique intencional no mapa procura o CEP associado ao ponto mapeado mais próximo e executa a consulta normal. A busca reversa não é executada automaticamente para CEPs sem coordenadas.
+
+Na busca por município, o usuário informa nome e UF; o mapa compara o centro geográfico publicado pelo Nominatim com a prefeitura identificada no OpenStreetMap. Os CEPs são mostrados como associados aos pontos mapeados e podem estar indisponíveis; não rotular como CEP geral oficial.
 
 ## 11. Plano de implementação por features
 
@@ -264,6 +283,9 @@ Não executar `git push` automaticamente; commits/versionamento somente após va
 - [ ] Cadastro, login e logout funcionam; senhas não são armazenadas em claro.
 - [ ] CEP válido retorna dados oficiais disponíveis e código IBGE verificado.
 - [ ] CEP sem coordenadas apresenta consulta parcial, sem inventar clima.
+- [ ] Consulta com coordenadas válidas exibe marcador no mapa com atribuição OpenStreetMap; sem coordenadas, apresenta indisponibilidade clara.
+- [ ] Clique explícito no mapa procura um CEP mapeado e reutiliza a consulta normal, sem alterar os demais fluxos.
+- [ ] Busca explícita por município/UF apresenta o centro geográfico e, quando houver dado cartográfico correspondente, o centro cívico/prefeitura, com CEP associado ou indisponibilidade clara.
 - [ ] Clima mostra temperatura, vento, condição e timestamp quando disponível.
 - [ ] População e densidade exibem valor, ano e fonte próprios.
 - [ ] Consultas comuns não criam registros de cidades no SQLite.

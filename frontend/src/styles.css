@@ -116,6 +116,15 @@ a { color: inherit; }
 .hero-content h2 { margin: 12px 0 7px; font: 700 clamp(22px, 2.8vw, 31px)/1.22 Manrope, sans-serif; letter-spacing: -.85px; }
 .hero-content > p { margin: 0 0 20px; color: rgba(255,255,255,.79); font-size: 11px; }
 .cep-form { display: flex; gap: 9px; max-width: 624px; }
+.search-mode-tabs { display: flex; width: fit-content; gap: 4px; padding: 3px; margin: -7px 0 10px; border: 1px solid rgba(255,255,255,.34); border-radius: 8px; background: rgba(0,0,0,.13); }
+.search-mode-tab { min-height: 27px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: rgba(255,255,255,.82); font-size: 10px; font-weight: 700; }
+.search-mode-tab.active { background: white; color: #24655d; box-shadow: 0 2px 7px rgba(0,0,0,.1); }
+.city-search-form { display: flex; align-items: end; gap: 9px; max-width: 624px; }
+.city-search-form label { display: block; margin: 0 0 5px; color: rgba(255,255,255,.88); font-size: 9px; font-weight: 700; }
+.city-name-field { flex: 1; min-width: 160px; }
+.city-state-field { width: 74px; flex: 0 0 auto; }
+.city-search-form input, .city-search-form select { width: 100%; height: 45px; padding: 0 12px; border: 1px solid rgba(255,255,255,.48); border-radius: 8px; outline: none; background: rgba(255,255,255,.96); color: #28474a; font-size: 12px; }
+.city-search-form input:focus, .city-search-form select:focus { border-color: #c1e5d6; box-shadow: 0 0 0 3px rgba(193,229,214,.23); }
 .cep-input-wrap { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 0; height: 45px; padding: 0 14px; border: 1px solid rgba(255,255,255,.48); border-radius: 8px; background: rgba(255,255,255,.96); color: #567171; box-shadow: 0 6px 14px rgba(0,0,0,.08); }
 .cep-input-wrap svg { flex: 0 0 auto; color: #6d8985; }
 .cep-input-wrap input { width: 100%; min-width: 0; height: 100%; padding: 0; outline: none; border: 0; background: transparent; color: #28474a; font-size: 12px; }
@@ -152,6 +161,28 @@ a { color: inherit; }
 .partial-notice strong { font-size: 11px; }
 .partial-notice ul { padding-left: 15px; margin: 4px 0 0; }
 .result-grid { display: grid; grid-template-columns: 1.04fr .96fr 1.17fr; gap: 14px; }
+.location-map-card { margin-top: 14px; }
+.location-map-frame { position: relative; height: 330px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #edf3f1; }
+.location-map { width: 100%; height: 100%; z-index: 0; }
+.map-caption { margin: 9px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.city-map-marker { display: grid; place-items: center; border: 3px solid #fff !important; border-radius: 50% !important; color: #fff; font: 800 13px Manrope, sans-serif; box-shadow: 0 2px 9px rgba(18,45,45,.38); }
+.city-map-marker span { line-height: 1; }
+.geographic-center-marker { background: #287b72 !important; }
+.civic-center-marker { background: #ce8a32 !important; }
+.city-center-legend { display: flex; flex-wrap: wrap; gap: 11px 24px; padding: 13px 2px 0; }
+.city-center-item { display: flex; align-items: center; gap: 9px; min-width: min(100%, 250px); }
+.city-center-symbol { display: grid; place-items: center; width: 27px; height: 27px; flex: 0 0 auto; border: 2px solid white; border-radius: 50%; color: #fff; font: 800 10px Manrope, sans-serif; box-shadow: 0 1px 5px rgba(20,55,50,.2); }
+.geographic-symbol { background: #287b72; }
+.civic-symbol { background: #ce8a32; }
+.city-center-item div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.city-center-item strong { color: #345156; font: 700 11px Manrope, sans-serif; }
+.city-center-item div span { color: var(--muted); font-size: 10px; }
+.city-search-footnote { margin-top: 11px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.map-status { position: absolute; z-index: 500; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); padding: 8px 12px; border-radius: 8px; background: rgba(25, 52, 59, .9); color: #fff; font-size: 12px; text-align: center; }
+.map-selection-status { position: absolute; z-index: 500; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 8px; background: rgba(25, 52, 59, .92); color: #fff; font-size: 12px; }
+.map-selection-status .spinner { width: 14px; height: 14px; border-color: rgba(255,255,255,.4); border-top-color: #fff; }
+.map-unavailable { min-height: 115px; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px; border: 1px dashed #cfdcd8; border-radius: 12px; background: #f8fbfa; color: var(--muted); }
+.map-unavailable p { max-width: 440px; margin: 0; font-size: 13px; line-height: 1.5; }
 .info-card { min-width: 0; padding: 17px 17px 15px; border: 1px solid #e7eeeb; border-radius: 11px; background: #fff; box-shadow: 0 6px 19px rgba(24,59,62,.03); }
 .card-heading { display: flex; align-items: center; gap: 10px; padding-bottom: 13px; border-bottom: 1px solid #eff3f1; }
 .icon-bubble { display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 10px; }
@@ -290,9 +321,14 @@ a { color: inherit; }
   .welcome-row p { max-width: 260px; font-size: 11px; line-height: 1.5; }
   .today-chip { display: none; }
   .search-hero { min-height: 257px; align-items: flex-start; padding: 23px 18px; margin-bottom: 20px; background-position: 55% center; }
+  .search-hero:has(.city-search-form) { min-height: 330px; }
   .hero-content h2 { max-width: 310px; font-size: 24px; }
   .hero-content > p { max-width: 300px; line-height: 1.5; }
   .cep-form { flex-direction: column; gap: 8px; }
+  .city-search-form { display: grid; grid-template-columns: minmax(0, 1fr) 66px; gap: 8px; }
+  .city-name-field { min-width: 0; }
+  .city-state-field { width: auto; }
+  .city-search-form .search-button { grid-column: 1 / -1; }
   .cep-input-wrap, .search-button { width: 100%; height: 43px; }
   .hero-coordinate { right: 17px; bottom: 15px; }
   .welcome-grid { gap: 9px; }
@@ -302,6 +338,7 @@ a { color: inherit; }
   .results-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
   .results-heading h2 { font-size: 20px; }
   .result-grid { grid-template-columns: 1fr; gap: 10px; }
+  .location-map-frame { height: 250px; }
   .demographic-card { grid-column: auto; }
   .indicator-list { grid-template-columns: 1fr; }
   .info-card { padding: 15px; }

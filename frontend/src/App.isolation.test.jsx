@@ -11,6 +11,8 @@ vi.mock('./services/api.js', () => ({
     login: vi.fn(),
     logout: vi.fn(),
     lookupCep: vi.fn(),
+    reverseGeocode: vi.fn(),
+    searchCityCenters: vi.fn(),
     favorites: vi.fn(),
     favorite: vi.fn(),
     saveFavorite: vi.fn(),
@@ -18,6 +20,20 @@ vi.mock('./services/api.js', () => ({
     removeFavorite: vi.fn(),
   },
 }));
+
+vi.mock('./components/LocationMap.jsx', async () => {
+  const { createElement } = await import('react');
+  return {
+    default: ({ onPointSelect, pending, cityCenters }) => createElement('div', null,
+      cityCenters && createElement('p', null, `Centro geográfico ${cityCenters.geographicCenter.cep}; prefeitura ${cityCenters.civicCenter?.cep}`),
+      createElement('button', {
+        type: 'button',
+        'aria-label': 'Selecionar ponto no mapa',
+        disabled: pending,
+        onClick: () => onPointSelect({ latitude: -19.4686, longitude: -42.5367 }),
+      }, pending ? 'Localizando CEP…' : 'Selecionar ponto no mapa')),
+  };
+});
 
 import App from './App.jsx';
 import { api } from './services/api.js';
@@ -81,6 +97,13 @@ beforeEach(() => {
   api.logout.mockResolvedValue({ data: { message: 'Sessão encerrada.' } });
   api.favorites.mockResolvedValue({ data: [] });
   api.lookupCep.mockImplementation(async (cep) => ({ data: snapshot(cep) }));
+  api.searchCityCenters.mockImplementation(async ({ city, state }) => ({
+    data: {
+      city, state, source: 'OpenStreetMap / Nominatim', attribution: '© OpenStreetMap contributors',
+      geographicCenter: { name: city, latitude: -23.55, longitude: -46.63, cep: '01001000' },
+      civicCenter: { name: 'Prefeitura Municipal', latitude: -23.54, longitude: -46.62, cep: '01002000' },
+    },
+  }));
 });
 
 afterEach(() => cleanup());
@@ -149,5 +172,38 @@ describe('regressão de isolamento do CEP entre sessões', () => {
     });
     expect(screen.getByLabelText('CEP brasileiro').value).toBe('');
     expect(screen.queryByRole('heading', { name: /Ipatinga/ })).toBeNull();
+  });
+
+  it('consulta pelo CEP associado ao ponto escolhido no mapa', async () => {
+    const user = userEvent.setup();
+    api.reverseGeocode.mockResolvedValue({ data: { cep: '35160000' } });
+    render(<App />);
+    await registerAndLogin(user, 'Ana', 'ana@example.test', 'senha-ana-123');
+
+    await user.type(screen.getByLabelText('CEP brasileiro'), '01001000');
+    await user.click(screen.getByRole('button', { name: /Consultar/ }));
+    await screen.findByRole('heading', { name: /São Paulo/ });
+    await user.click(screen.getByRole('button', { name: 'Selecionar ponto no mapa' }));
+
+    expect(api.reverseGeocode).toHaveBeenCalledWith({ latitude: -19.4686, longitude: -42.5367 });
+    expect(await screen.findByRole('heading', { name: /Ipatinga/ })).toBeTruthy();
+    expect(screen.getByLabelText('CEP brasileiro').value).toBe('35160-000');
+    expect(api.lookupCep).toHaveBeenLastCalledWith('35160-000');
+    expect(await screen.findByText('CEP 35160-000 associado ao ponto selecionado no mapa.')).toBeTruthy();
+  });
+
+  it('busca município/UF e apresenta centro geográfico e centro cívico', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await registerAndLogin(user, 'Ana', 'ana@example.test', 'senha-ana-123');
+    await user.click(screen.getByRole('button', { name: 'Por cidade' }));
+    await user.type(screen.getByLabelText('Município'), 'São Paulo');
+    await user.selectOptions(screen.getByLabelText('UF'), 'SP');
+    await user.click(screen.getByRole('button', { name: 'Buscar cidade' }));
+
+    expect(api.searchCityCenters).toHaveBeenCalledWith({ city: 'São Paulo', state: 'SP' });
+    expect(await screen.findByRole('heading', { name: /São Paulo/ })).toBeTruthy();
+    expect(await screen.findByText('Centro geográfico 01001000; prefeitura 01002000')).toBeTruthy();
+    expect(screen.getByText(/não representa um CEP geral oficial/)).toBeTruthy();
   });
 });

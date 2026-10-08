@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import Brand from './components/Brand.jsx';
 import DemographicCard from './components/DemographicCard.jsx';
+import LocationMap from './components/LocationMap.jsx';
 import WeatherCard, { formatDateTime } from './components/WeatherCard.jsx';
 import { api } from './services/api.js';
 import { readUserConsultation, saveUserConsultation } from './services/userConsultationStore.js';
@@ -17,6 +18,10 @@ export default function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [cep, setCep] = useState('');
   const [result, setResult] = useState(null);
+  const [citySearchResult, setCitySearchResult] = useState(null);
+  const [searchMode, setSearchMode] = useState('cep');
+  const [cityName, setCityName] = useState('');
+  const [cityState, setCityState] = useState('SP');
   const [favorites, setFavorites] = useState([]);
   const [selectedFavorite, setSelectedFavorite] = useState(null);
   const [loading, setLoading] = useState('');
@@ -24,6 +29,7 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [favoriteSearch, setFavoriteSearch] = useState('');
   const activeUserIdRef = useRef(null);
+  const lookupSequenceRef = useRef(0);
 
   const loadFavorites = useCallback(async () => {
     const requestedUserId = activeUserIdRef.current;
@@ -97,23 +103,78 @@ export default function App() {
   async function handleLookup(event) {
     event.preventDefault();
     const requestedUserId = activeUserIdRef.current;
+    const requestSequence = ++lookupSequenceRef.current;
     const requestedCep = cep;
     if (requestedUserId === null) return;
     setError('');
     setNotice('');
+    setCitySearchResult(null);
     setResult(null);
     saveUserConsultation(requestedUserId, { cep: requestedCep, result: null });
     setLoading('lookup');
     try {
       const response = await api.lookupCep(requestedCep);
-      if (activeUserIdRef.current !== requestedUserId) return;
+      if (activeUserIdRef.current !== requestedUserId || lookupSequenceRef.current !== requestSequence) return;
       setResult(response.data);
       saveUserConsultation(requestedUserId, { cep: requestedCep, result: response.data });
       await loadFavorites();
     } catch (requestError) {
-      if (activeUserIdRef.current === requestedUserId) setError(requestError.message);
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setError(requestError.message);
     } finally {
-      if (activeUserIdRef.current === requestedUserId) setLoading('');
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setLoading('');
+    }
+  }
+
+  async function handleCitySearch(event) {
+    event.preventDefault();
+    const requestedUserId = activeUserIdRef.current;
+    if (requestedUserId === null) return;
+    const requestSequence = ++lookupSequenceRef.current;
+    setError('');
+    setNotice('');
+    setLoading('city-search');
+    try {
+      const response = await api.searchCityCenters({ city: cityName.trim(), state: cityState });
+      if (activeUserIdRef.current !== requestedUserId || lookupSequenceRef.current !== requestSequence) return;
+      setCitySearchResult(response.data);
+    } catch (requestError) {
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setError(requestError.message);
+    } finally {
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setLoading('');
+    }
+  }
+
+  async function handleMapPointSelect(coordinates) {
+    const requestedUserId = activeUserIdRef.current;
+    if (requestedUserId === null || loading === 'map-lookup' || loading === 'lookup') return;
+    const requestSequence = ++lookupSequenceRef.current;
+    setError('');
+    setNotice('');
+    setLoading('map-lookup');
+
+    try {
+      const reverseResult = await api.reverseGeocode(coordinates);
+      if (activeUserIdRef.current !== requestedUserId || lookupSequenceRef.current !== requestSequence) return;
+
+      const selectedCep = formatCep(reverseResult.data.cep);
+      setCep(selectedCep);
+      setResult(null);
+      saveUserConsultation(requestedUserId, { cep: selectedCep, result: null });
+      setLoading('lookup');
+
+      const response = await api.lookupCep(selectedCep);
+      if (activeUserIdRef.current !== requestedUserId || lookupSequenceRef.current !== requestSequence) return;
+      setCitySearchResult(null);
+      setResult(response.data);
+      saveUserConsultation(requestedUserId, { cep: selectedCep, result: response.data });
+      await loadFavorites();
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) {
+        setNotice(`CEP ${selectedCep} associado ao ponto selecionado no mapa.`);
+      }
+    } catch (requestError) {
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setError(requestError.message);
+    } finally {
+      if (activeUserIdRef.current === requestedUserId && lookupSequenceRef.current === requestSequence) setLoading('');
     }
   }
 
@@ -205,10 +266,12 @@ export default function App() {
   }
 
   async function handleLogout() {
+    lookupSequenceRef.current += 1;
     activeUserIdRef.current = null;
     setUser(null);
     setCep('');
     setResult(null);
+    setCitySearchResult(null);
     setFavorites([]);
     setSelectedFavorite(null);
     setFavoriteSearch('');
@@ -267,8 +330,10 @@ export default function App() {
 
           {activePage === 'dashboard' && (
             <Dashboard
-              cep={cep} onCepChange={handleCepChange} loading={loading} result={result} favorite={currentFavorite}
-              onLookup={handleLookup} onFavorite={handleFavorite}
+              cep={cep} onCepChange={handleCepChange} loading={loading} result={result} citySearchResult={citySearchResult} favorite={currentFavorite}
+              searchMode={searchMode} setSearchMode={setSearchMode} cityName={cityName} setCityName={setCityName}
+              cityState={cityState} setCityState={setCityState} onLookup={handleLookup} onCitySearch={handleCitySearch}
+              onFavorite={handleFavorite} onMapPointSelect={handleMapPointSelect}
             />
           )}
           {activePage === 'favorites' && (
@@ -319,19 +384,48 @@ function AuthScreen({ mode, setMode, onSubmit, loading, error, notice }) {
   );
 }
 
-function Dashboard({ cep, onCepChange, loading, result, favorite, onLookup, onFavorite }) {
+function Dashboard({ cep, onCepChange, loading, result, citySearchResult, favorite, searchMode, setSearchMode, cityName, setCityName, cityState, setCityState, onLookup, onCitySearch, onFavorite, onMapPointSelect }) {
   return (
     <>
       <section className="welcome-row"><div><span className="section-kicker">PAINEL MUNICIPAL</span><h1>Olá, que bom ter você aqui.</h1><p>Encontre informações úteis sobre qualquer município brasileiro.</p></div><div className="today-chip"><span className="today-dot" />Atualizado conforme as fontes oficiais</div></section>
       <section className="search-hero" style={{ '--coast-image': `url("${coastImage}")` }}>
-        <div className="hero-content"><span className="hero-label"><MapPin size={15} /> BUSCA POR CEP</span><h2>Seu município, em perspectiva.</h2><p>Digite um CEP para consultar endereço, clima e indicadores oficiais.</p>
-          <form className="cep-form" onSubmit={onLookup}><label className="sr-only" htmlFor="cep-input">CEP brasileiro</label><div className="cep-input-wrap"><Search size={19} /><input id="cep-input" inputMode="numeric" autoComplete="postal-code" placeholder="Digite o CEP, ex.: 01001-000" value={cep} onChange={(event) => onCepChange(formatCepInput(event.target.value))} maxLength="9" /></div><button className="primary-button search-button" type="submit" disabled={loading === 'lookup'}>{loading === 'lookup' ? <><span className="spinner spinner-light" />Buscando</> : <>Consultar <ArrowUpRight size={17} /></>}</button></form>
+        <div className="hero-content"><span className="hero-label"><MapPin size={15} /> BUSCA DE LOCALIDADE</span><h2>Seu município, em perspectiva.</h2><p>Pesquise um CEP ou encontre os pontos de referência de uma cidade.</p>
+          <div className="search-mode-tabs" role="group" aria-label="Tipo de busca">
+            <button type="button" className={searchMode === 'cep' ? 'search-mode-tab active' : 'search-mode-tab'} aria-pressed={searchMode === 'cep'} onClick={() => setSearchMode('cep')}>Por CEP</button>
+            <button type="button" className={searchMode === 'city' ? 'search-mode-tab active' : 'search-mode-tab'} aria-pressed={searchMode === 'city'} onClick={() => setSearchMode('city')}>Por cidade</button>
+          </div>
+          {searchMode === 'cep' ? (
+            <form className="cep-form" onSubmit={onLookup}><label className="sr-only" htmlFor="cep-input">CEP brasileiro</label><div className="cep-input-wrap"><Search size={19} /><input id="cep-input" inputMode="numeric" autoComplete="postal-code" placeholder="Digite o CEP, ex.: 01001-000" value={cep} onChange={(event) => onCepChange(formatCepInput(event.target.value))} maxLength="9" disabled={loading === 'map-lookup' || loading === 'city-search'} /></div><button className="primary-button search-button" type="submit" disabled={loading === 'lookup' || loading === 'map-lookup' || loading === 'city-search'}>{loading === 'lookup' ? <><span className="spinner spinner-light" />Buscando</> : loading === 'map-lookup' ? <><span className="spinner spinner-light" />Localizando CEP</> : <>Consultar <ArrowUpRight size={17} /></>}</button></form>
+          ) : (
+            <form className="city-search-form" onSubmit={onCitySearch}>
+              <div className="city-name-field"><label htmlFor="city-input">Município</label><input id="city-input" autoComplete="address-level2" placeholder="Ex.: São Paulo" value={cityName} onChange={(event) => setCityName(event.target.value)} maxLength="100" required /></div>
+              <div className="city-state-field"><label htmlFor="state-input">UF</label><select id="state-input" value={cityState} onChange={(event) => setCityState(event.target.value)}>{BRAZILIAN_UFS.map((state) => <option key={state} value={state}>{state}</option>)}</select></div>
+              <button className="primary-button search-button" type="submit" disabled={loading === 'city-search'}>{loading === 'city-search' ? <><span className="spinner spinner-light" />Buscando cidade</> : <>Buscar cidade <ArrowUpRight size={17} /></>}</button>
+            </form>
+          )}
         </div>
         <div className="hero-coordinate"><span>INFORMAÇÃO LOCAL</span><strong>Brasil <ArrowDownRight size={15} /></strong></div>
       </section>
 
-      {result ? <LocationResults result={result} favorite={favorite} loading={loading} onFavorite={onFavorite} /> : <DashboardWelcome />}
+      {citySearchResult ? <CitySearchResults result={citySearchResult} onMapPointSelect={onMapPointSelect} loading={loading} /> : result ? <LocationResults result={result} favorite={favorite} loading={loading} onFavorite={onFavorite} onMapPointSelect={onMapPointSelect} /> : <DashboardWelcome />}
     </>
+  );
+}
+
+function CitySearchResults({ result, onMapPointSelect, loading }) {
+  const location = {
+    city: result.city,
+    state: result.state,
+    latitude: result.geographicCenter.latitude,
+    longitude: result.geographicCenter.longitude,
+    cep: result.geographicCenter.cep,
+  };
+  return (
+    <section className="results-section city-search-results" aria-live="polite">
+      <div className="results-heading"><div><span className="section-kicker">BUSCA POR CIDADE</span><h2>{result.city} <span className="state-pill">{result.state}</span></h2><p>Referências geográficas aproximadas · {result.source}</p></div></div>
+      <LocationMap location={location} cityCenters={result} onPointSelect={onMapPointSelect} pending={loading === 'map-lookup'} />
+      <div className="city-search-footnote">CEP associado ao ponto mapeado; não representa um CEP geral oficial do município. {result.attribution}.</div>
+    </section>
   );
 }
 
@@ -341,12 +435,12 @@ function DashboardWelcome() {
       <article className="welcome-card"><span className="welcome-icon"><CloudSun size={21} /></span><div><strong>Clima e bem-estar</strong><p>Veja as condições meteorológicas quando houver coordenadas disponíveis.</p></div></article>
       <article className="welcome-card"><span className="welcome-icon icon-green"><UsersRound size={21} /></span><div><strong>Indicadores oficiais</strong><p>Consulte população e densidade demográfica com fonte e ano.</p></div></article>
       <article className="welcome-card"><span className="welcome-icon icon-gold"><Star size={21} /></span><div><strong>Seus lugares favoritos</strong><p>Salve snapshots para consultar novamente, mesmo sem internet.</p></div></article>
-      <div className="empty-hint"><span className="hint-line" /><span>Comece digitando um CEP acima</span><span className="hint-line" /></div>
+      <div className="empty-hint"><span className="hint-line" /><span>Comece buscando por CEP ou município</span><span className="hint-line" /></div>
     </section>
   );
 }
 
-function LocationResults({ result, favorite, loading, onFavorite }) {
+function LocationResults({ result, favorite, loading, onFavorite, onMapPointSelect }) {
   const { location, weather, demographics, warnings } = result;
   return (
     <section className="results-section" aria-live="polite">
@@ -359,6 +453,7 @@ function LocationResults({ result, favorite, loading, onFavorite }) {
         <WeatherCard weather={weather} />
         <DemographicCard demographics={demographics} />
       </div>
+      <LocationMap location={location} onPointSelect={onMapPointSelect} pending={loading === 'map-lookup'} />
       <div className="collected-note"><span className="today-dot" />Consulta realizada em {formatDateTime(result.collectedAt)} · Pesquisas comuns não são salvas.</div>
     </section>
   );
@@ -422,3 +517,8 @@ function formatCep(value) {
 function formatCepInput(value) {
   return formatCep(value);
 }
+
+const BRAZILIAN_UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+];

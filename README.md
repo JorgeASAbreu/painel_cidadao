@@ -26,7 +26,7 @@ npm.cmd run build
 npm.cmd test
 ```
 
-Para executar somente a API: `npm.cmd run start`. A variável `PORT` altera a porta e `SQLITE_PATH` define outro caminho de banco. A sessão local usa cookie HttpOnly/SameSite e expira após sete dias. Não é necessário criar `.env` para iniciar em localhost.
+Para executar somente a API: `npm.cmd run start`. A variável `PORT` altera a porta, `SQLITE_PATH` define outro caminho de banco e `NOMINATIM_REVERSE_URL`/`NOMINATIM_SEARCH_URL` trocam os endpoints de geocodificação. A sessão local usa cookie HttpOnly/SameSite e expira após sete dias. Não é necessário criar `.env` para iniciar em localhost.
 
 ## Funcionalidades
 
@@ -34,6 +34,9 @@ Para executar somente a API: `npm.cmd run start`. A variável `PORT` altera a po
 - Consulta de CEP sem persistência no servidor/SQLite nem histórico: o navegador pode guardar apenas o último CEP e resultado, em chave `localStorage` isolada pelo ID do usuário. Senhas e sessão nunca são gravadas no armazenamento do navegador. BrasilAPI CEP v1 e, sem coordenadas, tentativa de v2.
 - Código municipal verificado pela API oficial de Localidades do IBGE. As regiões podem ser enriquecidas pelos endpoints de regiões da BrasilAPI.
 - Condições atuais Open-Meteo somente com coordenadas válidas obtidas no CEP. Sem coordenadas, o painel explica a indisponibilidade; não usa geocodificação alternativa.
+- Mapa Leaflet com tiles do OpenStreetMap encaminhados por rota autenticada do backend. O marcador indica a localização associada ao CEP segundo as coordenadas da BrasilAPI; não confirma número ou trecho exato da rua. O mapa aparece na consulta online e não integra a visualização offline de snapshots.
+- Clique no mapa para procurar, via Nominatim, o CEP associado ao objeto mapeado mais próximo; o CEP encontrado preenche o campo e segue pela consulta BrasilAPI existente. O retorno depende da cobertura OSM e não garante menor distância postal oficial. A busca é somente explícita (nunca fallback automático para CEP sem coordenadas), limitada a uma chamada por segundo e usa cache temporário em memória.
+- Busca por município e UF para comparar o centro geográfico e, quando identificada nos dados cartográficos, a prefeitura como centro cívico. O mapa mostra o CEP associado a cada referência; esses CEPs não são um CEP geral oficial, e a prefeitura pode não estar mapeada.
 - População mais recente disponível pelo agregado SIDRA 6579, variável 9324; densidade oficial pelo agregado 4714, variável 614. O período mais recente retornado é usado para cada série; os anos e fontes permanecem separados.
 - Favoritos únicos por usuário e código IBGE. Favoritar grava o snapshot dos dados disponíveis; abrir o favorito não consulta provedores externos. Atualização e exclusão são ações explícitas.
 - Indicadores parciais permanecem visíveis quando outro provedor não responde.
@@ -48,6 +51,9 @@ Para executar somente a API: `npm.cmd run start`. A variável `PORT` altera a po
 | GET | `/api/auth/me` | Sessão atual |
 | POST | `/api/auth/logout` | Encerrar sessão |
 | GET | `/api/locations/cep/:cep` | Consultar CEP e agregar os dados disponíveis (autenticado) |
+| GET | `/api/map/tiles/:z/:x/:y.png` | Obter tile cartográfico OpenStreetMap (autenticado) |
+| POST | `/api/map/reverse` | Procurar CEP por coordenada selecionada no mapa (autenticado) |
+| POST | `/api/map/city-centers` | Procurar centro geográfico e prefeitura por município/UF (autenticado) |
 | GET | `/api/favorites` | Listar snapshots do usuário |
 | GET | `/api/favorites/:id` | Ler um snapshot salvo |
 | POST | `/api/favorites` | Salvar um snapshot consultado |
@@ -56,6 +62,8 @@ Para executar somente a API: `npm.cmd run start`. A variável `PORT` altera a po
 
 As rotas funcionais de consulta e favoritos exigem sessão. Cada query SQL utiliza parâmetros e as operações de favoritos são limitadas ao usuário autenticado.
 
+`NOMINATIM_REVERSE_URL` (padrão `https://nominatim.openstreetmap.org/reverse`) e `NOMINATIM_SEARCH_URL` (padrão `https://nominatim.openstreetmap.org/search`) permitem trocar os endpoints Nominatim. As consultas passam pelo backend com identificação da aplicação no `User-Agent`; Search e Reverse compartilham limite máximo de uma solicitação por segundo e cache volátil limitado (256 respostas/24 horas). Os resultados não são persistidos no SQLite nem no `localStorage` como histórico.
+
 ## Fontes de dados verificadas
 
 - **BrasilAPI CEP v1/v2:** `https://brasilapi.com.br/api/cep/v1/{cep}` e `https://brasilapi.com.br/api/cep/v2/{cep}`.
@@ -63,6 +71,8 @@ As rotas funcionais de consulta e favoritos exigem sessão. Cada query SQL utili
 - **IBGE SIDRA população:** agregado 6579, variável 9324 (estimativa municipal mais recente disponível).
 - **IBGE SIDRA densidade:** agregado 4714, variável 614 (indicador censitário disponível mais recente).
 - **Open-Meteo Forecast:** temperatura, umidade relativa, vento, código WMO e horário, consultados pelas coordenadas do CEP.
+- **OpenStreetMap:** tiles cartográficos requisitados pelo backend em `https://tile.openstreetmap.org`, com atribuição visível no mapa. A posição é associada ao CEP e não assegura precisão de rua/número.
+- **Nominatim/OpenStreetMap:** busca reversa por clique explícito e busca municipal com centro geográfico/prefeitura; endpoints Reverse e Search são configuráveis. O limite de uma requisição por segundo é compartilhado e o cache é volátil. CEPs representam feições mapeadas e não são apresentados como CEP geral oficial. Consulte a [política de uso do Nominatim](https://operations.osmfoundation.org/policies/nominatim/).
 
 O endpoint consultado do INPE/PClima serve à exploração de projeções de mudanças climáticas; não foi validado como fonte de condições meteorológicas atuais equivalentes e, portanto, não é usado como fallback.
 
@@ -71,10 +81,13 @@ O endpoint consultado do INPE/PClima serve à exploração de projeções de mud
 1. Inicie com `npm.cmd run dev` e confira o indicador local na tela de autenticação.
 2. Cadastre uma conta, faça login e consulte um CEP real (por exemplo, `01001-000`).
 3. Confira endereço, código IBGE, clima quando houver coordenadas e indicadores com fonte/ano ou indisponibilidade clara.
-4. Favorite o município; abra a lista e confira o horário de coleta.
-5. Reinicie o processo. O favorito deve continuar no SQLite. Com internet desligada, abra o snapshot sem acionar atualização.
-6. Reconecte e atualize o favorito; depois remova-o com confirmação.
-7. Cadastre outro usuário e confirme que sua lista é independente; encerre a sessão.
+4. Com coordenadas válidas, confira o marcador no mapa e a atribuição OpenStreetMap; sem coordenadas, deve aparecer o aviso de mapa indisponível.
+5. Clique em outra área do mapa; confira que o CEP retornado preenche o campo e a consulta normal é executada.
+6. Selecione “Por cidade”, informe município e UF; confira os marcadores do centro geográfico e da prefeitura quando encontrada, seus CEPs associados e os avisos de dados aproximados.
+7. Favorite o município; abra a lista e confira o horário de coleta.
+8. Reinicie o processo. O favorito deve continuar no SQLite. Com internet desligada, abra o snapshot sem acionar atualização.
+9. Reconecte e atualize o favorito; depois remova-o com confirmação.
+10. Cadastre outro usuário e confirme que sua lista é independente; encerre a sessão.
 
 ### Regressão de consulta por usuário
 

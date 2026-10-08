@@ -23,6 +23,12 @@ export const api = {
   login: (data) => request('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   lookupCep: (cep) => request(`/locations/cep/${encodeURIComponent(cep)}`),
+  reverseGeocode: ({ latitude, longitude }) => request('/map/reverse', {
+    method: 'POST', body: JSON.stringify({ latitude, longitude }),
+  }),
+  searchCityCenters: ({ city, state }) => request('/map/city-centers', {
+    method: 'POST', body: JSON.stringify({ city, state }),
+  }),
   favorites: () => request('/favorites'),
   favorite: (id) => request(`/favorites/${id}`),
   saveFavorite: (snapshot) => request('/favorites', { method: 'POST', body: JSON.stringify({ snapshot }) }),
