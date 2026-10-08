@@ -6,6 +6,7 @@ import {
 import Brand from './components/Brand.jsx';
 import DemographicCard from './components/DemographicCard.jsx';
 import LocationMap from './components/LocationMap.jsx';
+import SmallBodyObservability from './components/SmallBodyObservability.jsx';
 import WeatherCard, { formatDateTime } from './components/WeatherCard.jsx';
 import { api } from './services/api.js';
 import { readUserConsultation, saveUserConsultation } from './services/userConsultationStore.js';
@@ -424,6 +425,12 @@ function CitySearchResults({ result, onMapPointSelect, loading }) {
     <section className="results-section city-search-results" aria-live="polite">
       <div className="results-heading"><div><span className="section-kicker">BUSCA POR CIDADE</span><h2>{result.city} <span className="state-pill">{result.state}</span></h2><p>Referências geográficas aproximadas · {result.source}</p></div></div>
       <LocationMap location={location} cityCenters={result} onPointSelect={onMapPointSelect} pending={loading === 'map-lookup'} />
+      <SmallBodyObservability
+        latitude={result.geographicCenter.latitude}
+        longitude={result.geographicCenter.longitude}
+        state={result.state}
+        locality={`${result.city} — ${result.state} · centro geográfico`}
+      />
       <div className="city-search-footnote">CEP associado ao ponto mapeado; não representa um CEP geral oficial do município. {result.attribution}.</div>
     </section>
   );
@@ -454,6 +461,12 @@ function LocationResults({ result, favorite, loading, onFavorite, onMapPointSele
         <DemographicCard demographics={demographics} />
       </div>
       <LocationMap location={location} onPointSelect={onMapPointSelect} pending={loading === 'map-lookup'} />
+      <SmallBodyObservability
+        latitude={location.latitude}
+        longitude={location.longitude}
+        state={location.state}
+        locality={`${location.city} — ${location.state}`}
+      />
       <div className="collected-note"><span className="today-dot" />Consulta realizada em {formatDateTime(result.collectedAt)} · Pesquisas comuns não são salvas.</div>
     </section>
   );

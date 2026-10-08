@@ -8,6 +8,8 @@ import { createFavoriteRoutes } from './routes/favoriteRoutes.js';
 import { createMapRoutes } from './routes/mapRoutes.js';
 import { createMapTileProvider } from './providers/mapTileProvider.js';
 import { createReverseGeocodeProvider } from './providers/reverseGeocodeProvider.js';
+import { createSmallBodyObservabilityProvider } from './providers/smallBodyObservabilityProvider.js';
+import { createAstronomyRoutes } from './routes/astronomyRoutes.js';
 
 export function createApp({
   db = createDatabase(),
@@ -15,6 +17,7 @@ export function createApp({
   mapTileProvider = createMapTileProvider(),
   reverseGeocodeProvider = createReverseGeocodeProvider(),
   citySearchProvider,
+  observabilityProvider = createSmallBodyObservabilityProvider(),
 } = {}) {
   const app = express();
   app.disable('x-powered-by');
@@ -33,6 +36,7 @@ export function createApp({
   app.use('/api/locations', createLocationRoutes(locationService));
   app.use('/api/favorites', createFavoriteRoutes(db, locationService));
   app.use('/api/map', createMapRoutes(mapTileProvider, reverseGeocodeProvider, citySearchProvider));
+  app.use('/api/astronomy', createAstronomyRoutes(observabilityProvider));
   app.use('/api', (_req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Rota não encontrada.' } }));
 
   app.use((error, _req, res, _next) => {

@@ -64,7 +64,13 @@ describe('caminho feliz municipal', () => {
       civicCenter: { name: 'Prefeitura Municipal', latitude: -23.54, longitude: -46.62, cep: '01002000' },
       source: 'OpenStreetMap / Nominatim',
     }));
-    const app = createApp({ db, locationService, mapTileProvider, reverseGeocodeProvider, citySearchProvider });
+    const observabilityProvider = vi.fn(async ({ latitude, longitude, date, nearEarthOnly }) => ({
+      source: 'NASA/JPL Small-Body Observability API', version: '1.0',
+      observer: { latitude, longitude, altitudeKm: 0 }, observationDate: date, nearEarthOnly,
+      totalObjects: 1, shownObjects: 1, night: { dark_time: '08:01' },
+      objects: [{ Designation: '433', 'Full name': '433 Eros', Vmag: '10.4' }],
+    }));
+    const app = createApp({ db, locationService, mapTileProvider, reverseGeocodeProvider, citySearchProvider, observabilityProvider });
     const userA = request.agent(app);
 
     const health = await userA.get('/api/health').expect(200);
@@ -91,6 +97,13 @@ describe('caminho feliz municipal', () => {
     expect(citySearch.body.data.geographicCenter.cep).toBe('01001000');
     expect(citySearch.body.data.civicCenter.cep).toBe('01002000');
     expect(citySearchProvider).toHaveBeenCalledWith({ city: 'São Paulo', state: 'SP' });
+    const observability = await userA.post('/api/astronomy/observability').send({
+      latitude: -23.55, longitude: -46.63, date: '2026-10-08', nearEarthOnly: true,
+    }).expect(200);
+    expect(observability.body.data.objects[0]['Full name']).toBe('433 Eros');
+    expect(observabilityProvider).toHaveBeenCalledWith({
+      latitude: -23.55, longitude: -46.63, date: '2026-10-08', nearEarthOnly: true,
+    });
 
     const lookup = await userA.get('/api/locations/cep/01001-000').expect(200);
     expect(lookup.body.data.location.ibgeCode).toBe('3550308');

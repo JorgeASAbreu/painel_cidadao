@@ -29,6 +29,9 @@ export const api = {
   searchCityCenters: ({ city, state }) => request('/map/city-centers', {
     method: 'POST', body: JSON.stringify({ city, state }),
   }),
+  smallBodyObservability: ({ latitude, longitude, date, nearEarthOnly }) => request('/astronomy/observability', {
+    method: 'POST', body: JSON.stringify({ latitude, longitude, date, nearEarthOnly }),
+  }),
   favorites: () => request('/favorites'),
   favorite: (id) => request(`/favorites/${id}`),
   saveFavorite: (snapshot) => request('/favorites', { method: 'POST', body: JSON.stringify({ snapshot }) }),

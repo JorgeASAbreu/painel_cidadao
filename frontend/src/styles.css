@@ -178,6 +178,32 @@ a { color: inherit; }
 .city-center-item strong { color: #345156; font: 700 11px Manrope, sans-serif; }
 .city-center-item div span { color: var(--muted); font-size: 10px; }
 .city-search-footnote { margin-top: 11px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.astronomy-card { margin-top: 14px; }
+.astronomy-heading { gap: 10px; }
+.astronomy-icon { background: #edf0fb; color: #5b63a8; }
+.astronomy-locality { margin-left: auto; color: #748588; font-size: 10px; text-align: right; }
+.astronomy-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; padding: 12px 0; }
+.astronomy-date { display: flex; align-items: center; gap: 7px; color: #617579; font-size: 10px; font-weight: 700; }
+.astronomy-date svg { color: #7381b5; }
+.astronomy-date input { min-height: 32px; padding: 4px 7px; border: 1px solid #dfe6e8; border-radius: 6px; color: #345156; font: 11px 'DM Sans', sans-serif; }
+.neo-filter { display: flex; align-items: center; gap: 7px; color: #627578; font-size: 10px; cursor: pointer; }
+.neo-filter input { accent-color: #5368a5; }
+.astronomy-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 17px; padding: 10px 12px; border: 1px solid #e8eaf3; border-radius: 8px; background: #f8f9fd; color: #64747a; font-size: 10px; }
+.astronomy-summary strong { color: #344b66; font-size: 12px; }
+.dark-duration { display: inline-flex; align-items: center; gap: 5px; color: #51588c; }
+.astronomy-table-wrap { width: 100%; overflow-x: auto; margin-top: 10px; border: 1px solid #e8eeec; border-radius: 8px; }
+.astronomy-table { width: 100%; min-width: 870px; border-collapse: collapse; text-align: left; }
+.astronomy-table th { padding: 9px 11px; background: #f7f9f8; color: #78888c; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.astronomy-table td { padding: 9px 11px; border-top: 1px solid #edf1ef; color: #52696d; font-size: 10px; white-space: nowrap; }
+.astronomy-table td:first-child { white-space: normal; }
+.astronomy-table td strong, .astronomy-table td small { display: block; }
+.astronomy-table td strong { color: #2f4b50; font-weight: 700; }
+.astronomy-table td small { margin-top: 3px; color: #889699; font-size: 9px; }
+.astronomy-loading, .astronomy-empty, .astronomy-error { display: flex; align-items: center; gap: 9px; min-height: 58px; padding: 12px; border-radius: 8px; font-size: 11px; line-height: 1.5; }
+.astronomy-loading, .astronomy-empty { background: #f8faf9; color: #728387; }
+.astronomy-error { background: #fff6f3; color: #a34c43; }
+.astronomy-footnote { margin: 10px 0 0; color: #829094; font-size: 9px; line-height: 1.55; }
+.astronomy-footnote a { color: #39766f; font-weight: 700; text-decoration: underline; }
 .map-status { position: absolute; z-index: 500; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); padding: 8px 12px; border-radius: 8px; background: rgba(25, 52, 59, .9); color: #fff; font-size: 12px; text-align: center; }
 .map-selection-status { position: absolute; z-index: 500; right: 10px; bottom: 10px; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-radius: 8px; background: rgba(25, 52, 59, .92); color: #fff; font-size: 12px; }
 .map-selection-status .spinner { width: 14px; height: 14px; border-color: rgba(255,255,255,.4); border-top-color: #fff; }
@@ -339,6 +365,8 @@ a { color: inherit; }
   .results-heading h2 { font-size: 20px; }
   .result-grid { grid-template-columns: 1fr; gap: 10px; }
   .location-map-frame { height: 250px; }
+  .astronomy-locality { max-width: 45%; }
+  .astronomy-controls { align-items: flex-start; flex-direction: column; gap: 10px; }
   .demographic-card { grid-column: auto; }
   .indicator-list { grid-template-columns: 1fr; }
   .info-card { padding: 15px; }

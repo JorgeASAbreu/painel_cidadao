@@ -13,6 +13,7 @@ vi.mock('./services/api.js', () => ({
     lookupCep: vi.fn(),
     reverseGeocode: vi.fn(),
     searchCityCenters: vi.fn(),
+    smallBodyObservability: vi.fn(),
     favorites: vi.fn(),
     favorite: vi.fn(),
     saveFavorite: vi.fn(),
@@ -104,6 +105,15 @@ beforeEach(() => {
       civicCenter: { name: 'Prefeitura Municipal', latitude: -23.54, longitude: -46.62, cep: '01002000' },
     },
   }));
+  api.smallBodyObservability.mockResolvedValue({ data: {
+    source: 'NASA/JPL Small-Body Observability API', sourceUrl: 'https://ssd-api.jpl.nasa.gov/sbwobs.api',
+    totalObjects: 4, shownObjects: 1, night: { dark_time: '08:01' },
+    objects: [{
+      Designation: '433', 'Full name': '433 Eros', Vmag: '10.4', 'Rise time': '22:10',
+      'Transit time': '01:20', 'Set time': '04:35', 'Max. time observable': '03:12',
+      'R.A.': '01:02:33', Dec: '+10 15\'00"',
+    }],
+  } });
 });
 
 afterEach(() => cleanup());
@@ -205,5 +215,29 @@ describe('regressão de isolamento do CEP entre sessões', () => {
     expect(await screen.findByRole('heading', { name: /São Paulo/ })).toBeTruthy();
     expect(await screen.findByText('Centro geográfico 01001000; prefeitura 01002000')).toBeTruthy();
     expect(screen.getByText(/não representa um CEP geral oficial/)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Pequenos corpos observáveis' })).toBeTruthy();
+    expect(await screen.findByText('433 Eros')).toBeTruthy();
+    await user.click(screen.getByLabelText('Somente objetos próximos da Terra (NEOs)'));
+    await waitFor(() => expect(api.smallBodyObservability).toHaveBeenLastCalledWith(expect.objectContaining({
+      latitude: -23.55, longitude: -46.63, nearEarthOnly: true,
+    })));
+  });
+
+  it('consulta observabilidade NASA/JPL pelas coordenadas válidas do CEP', async () => {
+    const user = userEvent.setup();
+    const locationResult = snapshot('01001000');
+    locationResult.location.latitude = -23.55;
+    locationResult.location.longitude = -46.63;
+    api.lookupCep.mockResolvedValueOnce({ data: locationResult });
+    render(<App />);
+    await registerAndLogin(user, 'Ana', 'ana@example.test', 'senha-ana-123');
+
+    await user.type(screen.getByLabelText('CEP brasileiro'), '01001000');
+    await user.click(screen.getByRole('button', { name: /Consultar/ }));
+
+    await screen.findByRole('heading', { name: /São Paulo/ });
+    await waitFor(() => expect(api.smallBodyObservability).toHaveBeenCalledWith(expect.objectContaining({
+      latitude: -23.55, longitude: -46.63, nearEarthOnly: false,
+    })));
   });
 });

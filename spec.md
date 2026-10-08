@@ -18,7 +18,7 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 - **Banco:** SQLite local via `better-sqlite3`; arquivo em diretório de dados não versionado.
 - **Testes do MVP:** Vitest e Supertest, testes de fluxo principal; testes específicos de segurança e hardening em fase final obrigatória.
 - **Execução:** localhost, sem Docker, sem PostgreSQL, sem serviços de autenticação de terceiros.
-- **Integrações:** BrasilAPI CEP v2, Open-Meteo, APIs oficiais IBGE (Localidades e fontes oficiais de indicadores, incluindo SIDRA quando aplicável) e Nominatim/OpenStreetMap em buscas explícitas por cidade ou ponto no mapa.
+- **Integrações:** BrasilAPI CEP v2, Open-Meteo, APIs oficiais IBGE (Localidades e fontes oficiais de indicadores, incluindo SIDRA quando aplicável), Nominatim/OpenStreetMap em buscas explícitas por cidade ou ponto no mapa, e NASA/JPL Small-Body Observability para observabilidade astronômica por coordenadas e noite.
 
 ## 3. Decisões aprovadas
 
@@ -42,6 +42,8 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 **Complemento validado pelo usuário:** mapa Leaflet com tiles do OpenStreetMap, atribuição visível e tiles obtidos pelo backend. Na consulta tradicional por CEP, o marcador reutiliza exclusivamente coordenadas fornecidas pela BrasilAPI; representa localização associada ao CEP e não garante número ou trecho exato de rua. Sem coordenadas válidas, informar indisponibilidade sem geocodificação alternativa. O mapa fica na consulta online e não integra a visualização offline de snapshots. Por ação explícita de clique, o usuário pode selecionar outra coordenada: Nominatim tenta retornar o CEP associado ao objeto mapeado mais próximo; o frontend então executa o fluxo BrasilAPI já existente. Esse retorno não garante o CEP oficial mais próximo por distância.
 
 **Complemento validado pelo usuário — busca municipal:** manter a busca por CEP e acrescentar busca por município e UF. Mostrar no mapa o centro geográfico publicado no OpenStreetMap e, quando mapeada/identificada, a prefeitura como centro cívico, com os CEPs associados a cada ponto. Coordenadas e CEPs dessa busca são referências OpenStreetMap/Nominatim, não coordenadas ou CEPs oficiais dos Correios; ausência de prefeitura ou CEP deve ser indicada sem fabricar valores. Essa busca só ocorre por solicitação explícita do usuário.
+
+**Complemento validado pelo usuário — observabilidade astronômica:** consultar a NASA/JPL Small-Body Observability API para estimar pequenos corpos (asteroides/cometas) observáveis opticamente na noite escolhida, usando coordenadas da consulta CEP ou o centro geográfico da busca municipal. A tela informa horários, magnitude, ascensão reta/declinação quando disponíveis e oferece filtro de objetos próximos da Terra (NEOs). A API retorna horários em UT; a interface os converte para o fuso local estimado com base na UF/coordenadas. Trata-se de estimativa matemática: não representa estrelas/planetas, não garante visibilidade a olho nu e não considera nuvens, poluição luminosa ou equipamento disponível. Consultas são autenticadas, não persistidas e indisponíveis quando faltam coordenadas.
 
 ## 5. Fluxo de usuário
 
@@ -156,6 +158,7 @@ Este é um projeto novo e autônomo: não reutilizar código, requisitos ou deci
 | GET | `/api/map/tiles/:z/:x/:y.png` | Obter tile OpenStreetMap (autenticado) |
 | POST | `/api/map/reverse` | Obter CEP associado a coordenadas selecionadas explicitamente (autenticado) |
 | POST | `/api/map/city-centers` | Buscar referências do centro geográfico e da prefeitura por município/UF (autenticado) |
+| POST | `/api/astronomy/observability` | Consultar pequenos corpos potencialmente observáveis por coordenadas/data (autenticado) |
 | GET | `/api/health` | Verificar disponibilidade do backend |
 
 **Respostas:** JSON com `data`, `status` e, quando necessário, `warnings`. Erros padronizados com `error.code` e `error.message`; nunca expor stack trace ao cliente. Autenticação exigida nas rotas de favoritos. A rota de consulta CEP também exigirá autenticação para preservar a experiência de painel autenticado.
@@ -165,6 +168,8 @@ A rota de tiles exige autenticação, retorna imagem PNG e usa somente o host fi
 A rota de busca reversa também exige autenticação, recebe latitude/longitude JSON, limita o retorno a CEP com oito dígitos e consulta Nominatim pelo backend. O endereço de serviço pode ser substituído via `NOMINATIM_REVERSE_URL`; a implementação respeita no máximo uma solicitação por segundo e usa cache somente volátil em memória (até 256 coordenadas por 24 horas), sem gravar consulta ou histórico em SQLite/localStorage. O frontend chama essa rota apenas após clique intencional no mapa; CEPs retornados são aproximados e dependem da cobertura OpenStreetMap.
 
 A busca municipal também é autenticada e recebe `city` e `state` (sigla UF). A rota usa Nominatim Search para localizar a referência municipal e procura uma feição de prefeitura/paço municipal dentro do município e UF identificados. CEPs que não estejam nos resultados são tentados pela busca reversa. Os resultados são apenas referências cartográficas associadas a feições do OpenStreetMap; não são CEP geral oficial nem garantem proximidade postal. `NOMINATIM_SEARCH_URL` pode trocar o endpoint Search. As chamadas Search e Reverse compartilham fila global de no máximo uma solicitação por segundo e cache temporário em memória; não há persistência de consultas.
+
+A rota NASA/JPL recebe latitude, longitude, data `YYYY-MM-DD` e `nearEarthOnly`. O backend consulta `https://ssd-api.jpl.nasa.gov/sbwobs.api`, valida a versão `1.0` da assinatura e normaliza as linhas usando os nomes de colunas retornados. A consulta é óptica, limita a elevação mínima a 30°, duração observável a 15 minutos, magnitude aparente V a 25 e mostra no máximo os 25 alvos mais brilhantes; altitude do observador segue o padrão de 0 km da API quando não fornecida. O filtro NEO restringe os resultados a objetos próximos da Terra. Horários de observação da resposta NASA são UT; dados astronômicos não são gravados em SQLite ou `localStorage`.
 
 **Modelo agregado indicativo:**
 
@@ -229,7 +234,7 @@ painel-civico/
 
 1. **Cadastro:** nome, e-mail, senha, confirmação.
 2. **Login:** e-mail e senha, navegação para cadastro.
-3. **Dashboard:** seletor de busca por CEP ou município/UF; consulta CEP com endereço, município/UF/IBGE, cards de clima e IBGE e mapa; busca municipal com centro geográfico e prefeitura/centro cívico e CEPs associados quando disponíveis.
+3. **Dashboard:** seletor de busca por CEP ou município/UF; consulta CEP com endereço, município/UF/IBGE, clima, indicadores IBGE e mapa; busca municipal com centro geográfico e prefeitura/centro cívico; card de pequenos corpos potencialmente observáveis, data da noite, filtro NEO e dados de apontamento quando disponíveis.
 4. **Favoritos:** lista individual, busca local na lista, abrir snapshot, atualizar e remover.
 5. **Detalhe do favorito:** informações salvas, datas, fontes, aviso de dado histórico e ação de atualização.
 
@@ -240,6 +245,8 @@ O mapa apresenta atribuição OpenStreetMap e ponto aproximado associado ao CEP;
 No dashboard, um clique intencional no mapa procura o CEP associado ao ponto mapeado mais próximo e executa a consulta normal. A busca reversa não é executada automaticamente para CEPs sem coordenadas.
 
 Na busca por município, o usuário informa nome e UF; o mapa compara o centro geográfico publicado pelo Nominatim com a prefeitura identificada no OpenStreetMap. Os CEPs são mostrados como associados aos pontos mapeados e podem estar indisponíveis; não rotular como CEP geral oficial.
+
+O card astronômico usa as coordenadas do CEP quando disponíveis e o centro geográfico no modo de busca municipal. A noite padrão é a data atual em São Paulo; o usuário pode escolher outra data ou filtrar somente NEOs. Sem coordenadas válidas, o painel mostra indisponibilidade em vez de geocodificar automaticamente um CEP.
 
 ## 11. Plano de implementação por features
 
@@ -286,6 +293,7 @@ Não executar `git push` automaticamente; commits/versionamento somente após va
 - [ ] Consulta com coordenadas válidas exibe marcador no mapa com atribuição OpenStreetMap; sem coordenadas, apresenta indisponibilidade clara.
 - [ ] Clique explícito no mapa procura um CEP mapeado e reutiliza a consulta normal, sem alterar os demais fluxos.
 - [ ] Busca explícita por município/UF apresenta o centro geográfico e, quando houver dado cartográfico correspondente, o centro cívico/prefeitura, com CEP associado ou indisponibilidade clara.
+- [ ] Com coordenadas, o card astronômico consulta NASA/JPL para a noite escolhida e permite filtrar NEOs; sem coordenadas, mostra indisponibilidade e não inventa localização.
 - [ ] Clima mostra temperatura, vento, condição e timestamp quando disponível.
 - [ ] População e densidade exibem valor, ano e fonte próprios.
 - [ ] Consultas comuns não criam registros de cidades no SQLite.
